@@ -1,0 +1,116 @@
+version: "3.8"
+
+x-airflow-common: &airflow-common
+  image: apache/airflow:2.10.0
+  restart: unless-stopped
+
+  env_file:
+    - .env
+
+  environment:
+    AIRFLOW_HOME: /opt/airflow
+    AIRFLOW__CORE__EXECUTOR: LocalExecutor
+    AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres/${POSTGRES_DATABASE}
+    AIRFLOW__CORE__LOAD_EXAMPLES: "false"
+    AIRFLOW__CORE__FERNET_KEY: ""
+    AIRFLOW__WEBSERVER__SECRET_KEY: "airflow-secret"
+    AIRFLOW_UID: 50000
+    _PIP_ADDITIONAL_REQUIREMENTS: "-r /opt/airflow/requirements.txt"
+
+  volumes:
+    - ./:/opt/project
+    - ./airflow/dags:/opt/airflow/dags
+    - ./airflow/logs:/opt/airflow/logs
+    - ./airflow/plugins:/opt/airflow/plugins
+    - ./airflow/config:/opt/airflow/config
+    - ./requirements.txt:/opt/airflow/requirements.txt
+
+  depends_on:
+    postgres:
+      condition: service_healthy
+
+services:
+
+  postgres:
+    image: postgres:16
+    container_name: nz-postgres
+    restart: unless-stopped
+
+    env_file:
+      - .env
+
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DATABASE}
+
+    ports:
+      - "5433:5432"
+
+    volumes:
+      - postgres-db-volume:/var/lib/postgresql/data
+
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  minio:
+    image: minio/minio
+    container_name: nz-minio
+    restart: unless-stopped
+
+    command: server /data --console-address ":9001"
+
+    env_file:
+      - .env
+
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ACCESS_KEY}
+      MINIO_ROOT_PASSWORD: ${MINIO_SECRET_KEY}
+
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+
+    volumes:
+      - minio-data:/data
+
+  airflow-init:
+    <<: *airflow-common
+    container_name: nz-airflow-init
+    restart: "no"
+
+    entrypoint: /bin/bash
+
+    command:
+      - -c
+      - |
+        airflow db migrate &&
+        airflow users create \
+          --username admin \
+          --firstname Admin \
+          --lastname User \
+          --role Admin \
+          --email admin@example.com \
+          --password admin
+
+  airflow-webserver:
+    <<: *airflow-common
+    container_name: nz-airflow-webserver
+
+    command: webserver
+
+    ports:
+      - "8080:8080"
+
+  airflow-scheduler:
+    <<: *airflow-common
+    container_name: nz-airflow-scheduler
+
+    command: scheduler
+
+volumes:
+  postgres-db-volume:
+  minio-data:
