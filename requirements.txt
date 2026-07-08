@@ -6,3 +6,15 @@ pandas
 psycopg2-binary
 requests
 sqlalchemy
+PyYAML
+minio
+pandas
+openpyxl
+pyarrow
+pymupdf
+python-docx
+beautifulsoup4
+lxml
+sqlalchemy
+psycopg2-binary
+python-dotenv

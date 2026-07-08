@@ -1,0 +1,15 @@
+dataset_name: Figure NZ
+
+source_type: csv
+
+source:
+  url: https://figure.nz/
+
+storage:
+  bucket: sportsdata
+  folder: bronze/figure_nz/
+
+database:
+  schema: bronze
+
+enabled: true
